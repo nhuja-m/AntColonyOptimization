@@ -1,26 +1,32 @@
-import React from 'react';
-import logo from './logo.svg';
+import React, { useState } from 'react';
+import GraphInputComponent from './components/GraphInput';
+import NodeList from './components/NodeList';
 import './App.css';
 
-function App() {
+type GraphNode = {
+  id: number;
+  x: number;
+  y: number;
+};
+
+const App: React.FC = () => {
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+
+  const handleNodeUpdate = (updatedNodes: GraphNode[]) => {
+    setNodes(updatedNodes);
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div className="container">
+      <div className="left-section">
+        <NodeList nodes={nodes} />
+      </div>
+      <div className="center-section">
+        <GraphInputComponent onNodeUpdate={handleNodeUpdate} />
+      </div>
+      <div className="right-section"></div>
     </div>
   );
-}
+};
 
 export default App;
