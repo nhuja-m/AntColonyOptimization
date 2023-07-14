@@ -37,7 +37,8 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   const [bestPath, setBestPath] = useState<number[]>([]);
   const [pheromones, setPheromones] = useState<number[][]>([]);
   const [distances, setDistances] = useState<number[][]>([]);
-
+  const [numberOfCities, setNumberOfCities] = useState<number>(0);
+  
   const c = 1.0;
   const alpha = 1;
   const beta = 5;
@@ -199,6 +200,137 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
       panelRef.current?.removeEventListener('click', handlePanelClick);
     };
   }, []);
+
+
+
+  const calculateDistance = (node1: GraphNode, node2: GraphNode) => {
+    const dx = node2.x - node1.x;
+    const dy = node2.y - node1.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+  
+  const generateDistancesMatrix = (nodes: GraphNode[]) => {
+    const numberOfCities = nodes.length;
+    const distances: number[][] = [];
+  
+    for (let i = 0; i < numberOfCities; i++) {
+      distances[i] = [];
+      for (let j = 0; j < numberOfCities; j++) {
+        if (i === j) {
+          distances[i][j] = 0;
+        } else {
+          distances[i][j] = calculateDistance(nodes[i], nodes[j]);
+        }
+      }
+    }
+  
+    return distances;
+  };
+  
+  useEffect(() => {
+    const distancesMatrix = generateDistancesMatrix(nodes);
+    setDistances(distancesMatrix);
+  }, [nodes]);
+  
+
+
+
+  const generateInitialPheromonesMatrix = (numberOfCities: number) => {
+    const pheromones: number[][] = [];
+  
+    for (let i = 0; i < numberOfCities; i++) {
+      pheromones[i] = [];
+      for (let j = 0; j < numberOfCities; j++) {
+        pheromones[i][j] = c;
+      }
+    }
+  
+    return pheromones;
+  };
+  
+  useEffect(() => {
+    if (distances.length > 0) {
+      const numberOfCities = distances.length;
+      const initialPheromonesMatrix = generateInitialPheromonesMatrix(numberOfCities);
+      setPheromones(initialPheromonesMatrix);
+    }
+  }, [distances]);
+  
+
+
+  const updateTrails = () => {
+    const updatedTrails: number[][] = [];
+  
+    for (let i = 0; i < nodes.length; i++) {
+      const row: number[] = [];
+      for (let j = 0; j < nodes.length; j++) {
+        row.push(pheromones[i][j] * evaporation);
+      }
+      updatedTrails.push(row);
+    }
+  
+    ants.forEach((ant) => {
+      const antPath = ant.path;
+      const contribution = Q / trailLength(ant);
+      for (let i = 0; i < antPath.length - 1; i++) {
+        const source = antPath[i] - 1;
+        const target = antPath[i + 1] - 1;
+        updatedTrails[source][target] += contribution;
+        updatedTrails[target][source] += contribution;
+      }
+    });
+  
+    setPheromones(updatedTrails);
+  };
+  
+  const trailLength = (ant: Ant) => {
+    let length = distances[ant.path[numberOfCities - 1] - 1][ant.path[0] - 1];
+    for (let i = 0; i < numberOfCities - 1; i++) {
+      length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
+    }
+    return length;
+  };
+  
+
+
+  const updateBest = () => {
+    let bestTourLength = Infinity;
+    let bestTourOrder: number[] = [];
+  
+    ants.forEach((ant) => {
+      const tourLength = trailLength(ant);
+      if (tourLength < bestTourLength) {
+        bestTourLength = tourLength;
+        bestTourOrder = ant.path.slice();
+      }
+    });
+  
+    setBestPath(bestTourOrder);
+  };
+  
+
+
+  useEffect(() => {
+    const distancesMatrix = generateDistancesMatrix(nodes);
+    setDistances(distancesMatrix);
+    setNumberOfCities(distancesMatrix.length);
+  }, [nodes]);
+  
+
+
+  useEffect(() => {
+    if (distances.length > 0) {
+      const initialPheromonesMatrix = generateInitialPheromonesMatrix(numberOfCities);
+      setPheromones(initialPheromonesMatrix);
+    }
+  }, [distances, numberOfCities]);
+  
+
+
+  useEffect(() => {
+    updateTrails();
+    updateBest();
+  }, [ants]);
 
   return (
     <div ref={panelRef} className="graph-input-panel">
