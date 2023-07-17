@@ -1,4 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { Button } from 'antd';
+import './GraphInputComponent.css';
+
 
 type GraphNode = {
   id: number;
@@ -29,6 +32,8 @@ const AntComponent: React.FC<Ant> = ({ id, currentCity, path }) => {
   );
 };
 
+let nodeIdCounter = 1;
+
 const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate }) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -47,10 +52,10 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   const antFactor = 0.8;
   const randomFactor = 0.01;
 
-  useEffect(() => {
-    const initialPheromones: number[][] = [];
-    const initialDistances: number[][] = [];
+  const initialPheromones: number[][] = [];
+  const initialDistances: number[][] = [];
 
+  useEffect(() => {
     setPheromones(initialPheromones);
     setDistances(initialDistances);
   }, []);
@@ -64,10 +69,11 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     const y = event.clientY - rect.top;
 
     const newNode: GraphNode = {
-      id: nodes.length + 1,
+      id: nodeIdCounter,
       x,
       y,
     };
+    nodeIdCounter++;
 
     setNodes((prevNodes) => [...prevNodes, newNode]);
   };
@@ -333,7 +339,8 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   }, [ants]);
 
   return (
-    <div ref={panelRef} className="graph-input-panel">
+    <div className="graph-input-container">
+      <div ref={panelRef} className="graph-input-panel">
       {nodes.map((node) => (
         <div
           key={node.id}
@@ -345,26 +352,45 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
         />
       ))}
       <svg className="graph-input-edges">
-        {edges.map((edge, index) => (
-          <line
-            key={index}
-            x1={nodes.find((node) => node.id === edge.source)?.x}
-            y1={nodes.find((node) => node.id === edge.source)?.y}
-            x2={nodes.find((node) => node.id === edge.target)?.x}
-            y2={nodes.find((node) => node.id === edge.target)?.y}
-            style={{ stroke: 'black', strokeWidth: 1 }}
-          />
-        ))}
+        {edges.map((edge, index) => {
+          const sourceNode = nodes.find((node) => node.id === edge.source);
+          const targetNode = nodes.find((node) => node.id === edge.target);
+          const isBestPathEdge = bestPath.includes(edge.source) && bestPath.includes(edge.target);
+          const strokeColor = isBestPathEdge ? 'red' : 'black';
+          const strokeWidth = isBestPathEdge ? 10 : 1;
+
+          if (sourceNode && targetNode) {
+            return (
+              <line
+                key={index}
+                x1={sourceNode.x}
+                y1={sourceNode.y}
+                x2={targetNode.x}
+                y2={targetNode.y}
+                style={{ stroke: strokeColor, strokeWidth }}
+              />
+            );
+          }
+
+          return null;
+        })}
       </svg>
+
+      </div>
+  
       <div className="ant-container">
         {ants.map((ant) => (
-          <AntComponent key={ant.id} id={ant.id} currentCity={ant.currentCity} path={ant.path} />
+          <AntComponent key={`${ant.id}-${ant.currentCity}`} id={ant.id} currentCity={ant.currentCity} path={ant.path} />
         ))}
       </div>
       <div>Best Path: {bestPath.join(' -> ')}</div>
-      <button onClick={runAntColonyOptimization}>Start Simulation</button>
+      <div className="button-container">
+        <Button onClick={runAntColonyOptimization}>Start Simulation</Button>
+      </div>
     </div>
   );
+
+  
 };
 
 export default GraphInputComponent;

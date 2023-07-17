@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import GraphInputComponent from './components/GraphInput';
+import GraphInputComponent from './components/GandS';
 import NodeList from './components/NodeList';
 import './App.css';
 
