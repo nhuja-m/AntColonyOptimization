@@ -52,6 +52,7 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   const antFactor = 0.8;
   const randomFactor = 0.01;
 
+
   const initialPheromones: number[][] = [];
   const initialDistances: number[][] = [];
 
@@ -92,6 +93,7 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     onNodeUpdate(nodes);
   }, [nodes, onNodeUpdate]);
 
+  // gets correct numver of ants randomly assigned with 0 path len
   const initializeAnts = () => {
     const numberOfCities = nodes.length;
     const numberOfAnts = Math.floor(numberOfCities * antFactor);
@@ -105,15 +107,19 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
       };
       antsArray.push(ant);
     }
-
     setAnts(antsArray);
   };
+
+  useEffect(() => {
+    const antArrayLength = ants.length;
+  }, [ants]);
 
   const getRandomCity = (numberOfCities: number) => {
     return Math.floor(Math.random() * numberOfCities) + 1;
   };
 
   const updateAnts = () => {
+    console.log("inside updateAnts");
     const updatedAnts = ants.map((ant) => {
       const currentCity = ant.currentCity;
       const nextCity = chooseNextCity(ant, pheromones, distances);
@@ -127,6 +133,7 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     });
 
     setAnts(updatedAnts);
+    updateBest();
   };
 
   const chooseNextCity = (ant: Ant, pheromones: number[][], distances: number[][]) => {
@@ -161,43 +168,24 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     return nextCity;
   };
 
-  const updatePheromones = () => {
-    const updatedPheromones: number[][] = [];
+  const runAntColonyOptimization = async () => {
+    await initializeAnts();
+    console.log("ants.length: ", ants.length);
+    // if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
+    //   // Handle invalid inputs
+    //   console.log("invalid");
+    //   return;
+    // }
+    console.log("valid");
 
-    for (let i = 0; i < nodes.length; i++) {
-      const row: number[] = [];
-      for (let j = 0; j < nodes.length; j++) {
-        row.push(pheromones[i][j] * evaporation);
-      }
-      updatedPheromones.push(row);
-    }
-
-    ants.forEach((ant) => {
-      const antPath = ant.path;
-      for (let i = 0; i < antPath.length - 1; i++) {
-        const source = antPath[i] - 1;
-        const target = antPath[i + 1] - 1;
-        updatedPheromones[source][target] += Q / antPath.length;
-        updatedPheromones[target][source] += Q / antPath.length;
-      }
-    });
-
-    setPheromones(updatedPheromones);
-  };
-
-  const runAntColonyOptimization = () => {
-    if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
-      // Handle invalid inputs
-      return;
-    }
-
-    initializeAnts();
     const maxIterations = 10; // Adjust the maximum number of iterations as needed
 
     for (let i = 0; i < maxIterations; i++) {
       updateAnts();
       updatePheromones();
-    }
+      // updateBest();
+    }    
+    console.log("bestPath: II ", bestPath);
   };
 
   useEffect(() => {
@@ -238,9 +226,6 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     setDistances(distancesMatrix);
   }, [nodes]);
   
-
-
-
   const generateInitialPheromonesMatrix = (numberOfCities: number) => {
     const pheromones: number[][] = [];
   
@@ -262,42 +247,16 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     }
   }, [distances]);
   
-
-
-  const updateTrails = () => {
-    const updatedTrails: number[][] = [];
-  
-    for (let i = 0; i < nodes.length; i++) {
-      const row: number[] = [];
-      for (let j = 0; j < nodes.length; j++) {
-        row.push(pheromones[i][j] * evaporation);
-      }
-      updatedTrails.push(row);
-    }
-  
-    ants.forEach((ant) => {
-      const antPath = ant.path;
-      const contribution = Q / trailLength(ant);
-      for (let i = 0; i < antPath.length - 1; i++) {
-        const source = antPath[i] - 1;
-        const target = antPath[i + 1] - 1;
-        updatedTrails[source][target] += contribution;
-        updatedTrails[target][source] += contribution;
-      }
-    });
-  
-    setPheromones(updatedTrails);
-  };
   
   const trailLength = (ant: Ant) => {
+    console.log("city num", numberOfCities);
     let length = distances[ant.path[numberOfCities - 1] - 1][ant.path[0] - 1];
+
     for (let i = 0; i < numberOfCities - 1; i++) {
       length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
     }
     return length;
   };
-  
-
 
   const updateBest = () => {
     let bestTourLength = Infinity;
@@ -312,8 +271,33 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     });
   
     setBestPath(bestTourOrder);
+    console.log("bestPath: ", bestPath);
   };
   
+  const updatePheromones = () => {
+    const updatedPheromones: number[][] = [];
+  
+    for (let i = 0; i < nodes.length; i++) {
+      const row: number[] = [];
+      for (let j = 0; j < nodes.length; j++) {
+        row.push(pheromones[i][j] * evaporation);
+      }
+      updatedPheromones.push(row);
+    }
+  
+    ants.forEach((ant) => {
+      const antPath = ant.path;
+      const contribution = Q / trailLength(ant);
+      for (let i = 0; i < antPath.length - 1; i++) {
+        const source = antPath[i] - 1;
+        const target = antPath[i + 1] - 1;
+        updatedPheromones[source][target] += contribution;
+        updatedPheromones[target][source] += contribution;
+      }
+    });
+  
+    setPheromones(updatedPheromones);
+  };
 
 
   useEffect(() => {
@@ -331,12 +315,9 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     }
   }, [distances, numberOfCities]);
   
-
-
   useEffect(() => {
-    updateTrails();
-    updateBest();
-  }, [ants]);
+    console.log("bestPath effect: ", bestPath);
+  }, [bestPath]);
 
   return (
     <div className="graph-input-container">
