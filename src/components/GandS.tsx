@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from 'antd';
 import './GraphInputComponent.css';
 
@@ -52,32 +52,8 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   const antFactor = 0.8;
   const randomFactor = 0.01;
 
-
   const initialPheromones: number[][] = [];
   const initialDistances: number[][] = [];
-
-  useEffect(() => {
-    setPheromones(initialPheromones);
-    setDistances(initialDistances);
-  }, []);
-
-  const handlePanelClick = (event: MouseEvent) => {
-    const panel = panelRef.current;
-    if (!panel) return;
-
-    const rect = panel.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-
-    const newNode: GraphNode = {
-      id: nodeIdCounter,
-      x,
-      y,
-    };
-    nodeIdCounter++;
-
-    setNodes((prevNodes) => [...prevNodes, newNode]);
-  };
 
   useEffect(() => {
     const newEdges: Edge[] = [];
@@ -89,57 +65,127 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
       }
     }
     setEdges(newEdges);
-
     onNodeUpdate(nodes);
   }, [nodes, onNodeUpdate]);
 
-  // gets correct numver of ants randomly assigned with 0 path len
-  const initializeAnts = () => {
-    const numberOfCities = nodes.length;
-    const numberOfAnts = Math.floor(numberOfCities * antFactor);
-    const antsArray: Ant[] = [];
+  useEffect(() => {
+    const distancesMatrix = generateDistancesMatrix(nodes);
+    setDistances(distancesMatrix);
+    setNumberOfCities(distancesMatrix.length);
+  
+    const initialPheromonesMatrix = generateInitialPheromonesMatrix(distancesMatrix.length);
+    setPheromones(initialPheromonesMatrix);
+    setDistances(distancesMatrix);
+  }, [nodes]);
+  
+  useEffect(() => {
+    panelRef.current?.addEventListener('click', handlePanelClick);
+    return () => {
+      panelRef.current?.removeEventListener('click', handlePanelClick);
+    };
+  }, []);
 
+  const initializeAnts = useCallback(() => {
+    const numberOfCities = nodes.length;
+    const numberOfAnts = 1 // Math.floor(numberOfCities * antFactor);
+    const antsArray: Ant[] = [];
+  
     for (let i = 0; i < numberOfAnts; i++) {
+      const city = getRandomCity(numberOfCities)
       const ant: Ant = {
         id: i + 1,
-        currentCity: getRandomCity(numberOfCities),
-        path: [],
+        currentCity: city,
+        path: [city],
       };
       antsArray.push(ant);
     }
+  
     setAnts(antsArray);
-  };
-
+  }, [nodes]);
+  
   useEffect(() => {
-    const antArrayLength = ants.length;
-  }, [ants]);
+    initializeAnts();
+  }, [initializeAnts]);
 
   const getRandomCity = (numberOfCities: number) => {
     return Math.floor(Math.random() * numberOfCities) + 1;
   };
 
+  // const updateAnts = () => {
+  //   console.log("update ants before: ", ants[0]);
+
+  //   const updatedAnts = ants.map((ant) => {
+  //     const currentCity = ant.currentCity;
+  //     console.log("current city: ", currentCity);
+  //     console.log("current path: ", ant.path);
+  //     const nextCity = chooseNextCity(ant, pheromones, distances);
+  //     console.log("next city: ", nextCity);
+  //     const updatedPath = [...ant.path, nextCity];
+  //     console.log("updated path: ", updatedPath);
+
+  //     return {
+  //       ...ant,
+  //       currentCity: nextCity,
+  //       path: updatedPath,
+  //     };
+  //   });
+  //   setAnts(updatedAnts);
+  //   console.log("update ants after: ", updatedAnts);
+  // };
+
+  // const updateAnts = () => {
+  //   setAnts((prevAnts) => {
+  //     console.log("update ants before: ", prevAnts[0]);
+  
+  //     const updatedAnts = prevAnts.map((ant) => {
+  //       const currentCity = ant.currentCity;
+  //       console.log("current city: ", currentCity);
+  //       console.log("current path: ", ant.path);
+  //       const nextCity = chooseNextCity(ant, pheromones, distances);
+  //       console.log("next city: ", nextCity);
+  //       const updatedPath = [...ant.path, nextCity];
+  //       console.log("updated path: ", updatedPath);
+  
+  //       return {
+  //         ...ant,
+  //         currentCity: nextCity,
+  //         path: updatedPath,
+  //       };
+  //     });
+  
+  //     console.log("update ants after: ", updatedAnts);
+  //     return updatedAnts;
+  //   });
+  // };
+
   const updateAnts = () => {
-    console.log("inside updateAnts");
-    const updatedAnts = ants.map((ant) => {
-      const currentCity = ant.currentCity;
-      const nextCity = chooseNextCity(ant, pheromones, distances);
-      const updatedPath = [...ant.path, currentCity];
+    setAnts((prevAnts) => {
+        const updatedAnts = prevAnts.map((ant) => {
+            const currentCity = ant.currentCity;
+            console.log("current city: ", currentCity);
+            console.log("current path: ", ant.path);
+            const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);  // Use ant.path directly here
+            console.log("next city: ", nextCity);
+            const updatedPath = [...ant.path, nextCity];
+            console.log("updated path: ", updatedPath);
 
-      return {
-        ...ant,
-        currentCity: nextCity,
-        path: updatedPath,
-      };
+            return {
+                ...ant,
+                currentCity: nextCity,
+                path: updatedPath,
+            };
+        });
+        return updatedAnts;
     });
+};
 
-    setAnts(updatedAnts);
-    updateBest();
-  };
 
-  const chooseNextCity = (ant: Ant, pheromones: number[][], distances: number[][]) => {
+  // const chooseNextCity = (ant: Ant, pheromones: number[][], distances: number[][]) => {
+  const chooseNextCity = (ant: Ant, previousPath: number[], pheromones: number[][], distances: number[][]) => {
     const currentCity = ant.currentCity;
     const cities = nodes.map((node) => node.id);
-    const remainingCities = cities.filter((city) => !ant.path.includes(city));
+    // const remainingCities = cities.filter((city) => !ant.path.includes(city));
+    const remainingCities = cities.filter((city) => !previousPath.includes(city));
 
     let totalProbability = 0;
     const probabilities: number[] = [];
@@ -168,35 +214,6 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     return nextCity;
   };
 
-  const runAntColonyOptimization = async () => {
-    await initializeAnts();
-    console.log("ants.length: ", ants.length);
-    // if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
-    //   // Handle invalid inputs
-    //   console.log("invalid");
-    //   return;
-    // }
-    console.log("valid");
-
-    const maxIterations = 10; // Adjust the maximum number of iterations as needed
-
-    for (let i = 0; i < maxIterations; i++) {
-      updateAnts();
-      updatePheromones();
-      // updateBest();
-    }    
-    console.log("bestPath: II ", bestPath);
-  };
-
-  useEffect(() => {
-    panelRef.current?.addEventListener('click', handlePanelClick);
-    return () => {
-      panelRef.current?.removeEventListener('click', handlePanelClick);
-    };
-  }, []);
-
-
-
   const calculateDistance = (node1: GraphNode, node2: GraphNode) => {
     const dx = node2.x - node1.x;
     const dy = node2.y - node1.y;
@@ -221,10 +238,6 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     return distances;
   };
   
-  useEffect(() => {
-    const distancesMatrix = generateDistancesMatrix(nodes);
-    setDistances(distancesMatrix);
-  }, [nodes]);
   
   const generateInitialPheromonesMatrix = (numberOfCities: number) => {
     const pheromones: number[][] = [];
@@ -239,24 +252,49 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     return pheromones;
   };
   
-  useEffect(() => {
-    if (distances.length > 0) {
-      const numberOfCities = distances.length;
-      const initialPheromonesMatrix = generateInitialPheromonesMatrix(numberOfCities);
-      setPheromones(initialPheromonesMatrix);
-    }
-  }, [distances]);
-  
-  
+  // const trailLength = (ant: Ant) => {
+  //   console.log("city num", numberOfCities);
+  //   console.log(distances);
+  //   console.log(ant.path)
+  //   let length = distances[ant.path[numberOfCities - 1] - 1][ant.path[0] - 1];
+
+  //   for (let i = 0; i < numberOfCities - 1; i++) {
+  //     length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
+  //   }
+  //   return length;
+  // };
+
   const trailLength = (ant: Ant) => {
     console.log("city num", numberOfCities);
-    let length = distances[ant.path[numberOfCities - 1] - 1][ant.path[0] - 1];
+    console.log("distances matrix", distances);
+    console.log("ant path", ant.path);
+    
+    const pathLength = ant.path.length;
+    
+    if(pathLength < 2) {
+        return 0;  // If the ant has visited less than 2 cities, the length is 0
+    }
 
-    for (let i = 0; i < numberOfCities - 1; i++) {
-      length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
+    const firstIndex = ant.path[pathLength - 1] - 1;
+    const secondIndex = ant.path[0] - 1;
+
+    console.log("First index:", firstIndex);
+    console.log("Second index:", secondIndex);
+    
+    if (!distances[firstIndex]) {
+        console.error("No subarray at index:", firstIndex);
+        return 0;  // Or handle this in some other appropriate way
+    }
+    
+    let length = distances[firstIndex][secondIndex];
+
+    for (let i = 0; i < pathLength - 1; i++) {
+        length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
     }
     return length;
-  };
+};
+
+
 
   const updateBest = () => {
     let bestTourLength = Infinity;
@@ -299,25 +337,119 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     setPheromones(updatedPheromones);
   };
 
+  const handlePanelClick = (event: MouseEvent) => {
+    const panel = panelRef.current;
+    if (!panel) return;
 
-  useEffect(() => {
-    const distancesMatrix = generateDistancesMatrix(nodes);
-    setDistances(distancesMatrix);
-    setNumberOfCities(distancesMatrix.length);
-  }, [nodes]);
+    const rect = panel.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    const newNode: GraphNode = {
+      id: nodeIdCounter,
+      x,
+      y,
+    };
+    nodeIdCounter++;
+
+    setNodes((prevNodes) => [...prevNodes, newNode]);
+  };
+
+  // const runAntColonyOptimization = async () => {
+  //   // await initializeAnts();
+  //   console.log("ants.length: ", ants.length);
+
+  //   if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
+  //     // Handle invalid inputs
+  //     console.log("invalid");
+  //     return;
+  //   }
+  //   console.log("valid");
+
+  //   const maxIterations = 10; // Adjust the maximum number of iterations as needed
+  //   for (let i = 0; i < maxIterations; i++) {
+  //     await new Promise(resolve => setTimeout(() => {
+  //       updateAnts();
+  //       resolve(null);
+  //   }, 0));
+
+  //   await new Promise(resolve => setTimeout(() => {
+  //       updatePheromones();
+  //       resolve(null);
+  //   }, 0));
+
+  //   await new Promise(resolve => setTimeout(() => {
+  //       updateBest();
+  //       resolve(null);
+  //   }, 0));
+  //   }    
+  //   console.log("bestPath: II ", bestPath);
+  // };
+
+// ANT.PATH REMAINS THE FIRST CITY ASSIGNED
+//   const runAntColonyOptimization = async () => {
+//     console.log("ants.length: ", ants.length);
+
+//     if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
+//         console.log("invalid");
+//         return;
+//     }
+//     console.log("valid");
+
+//     const maxIterations = 10;
+    
+//     let currentAnts = [...ants];  // Make a copy of the ants
+//     for (let i = 0; i < maxIterations; i++) {
+//         currentAnts = performAntUpdate(currentAnts);  // Update the ants based on previous state
+//         updatePheromones();  // This remains unchanged
+//         updateBest();  // This remains unchanged
+//     }
+//     setAnts(currentAnts);  // Update the state at the end
+//     console.log("bestPath: II ", bestPath);
+// };
+
+const runAntColonyOptimization = async () => {
+  console.log("ants.length: ", ants.length);
+
+  if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
+      console.log("invalid");
+      return;
+  }
+  console.log("valid");
+
+  const maxIterations = 10;
   
+  let currentAnts = [...ants];  // Make a copy of the ants
+  for (let i = 0; i < maxIterations; i++) {
+      currentAnts = performAntUpdate(currentAnts);  // Update the ants based on previous state
+      updatePheromones();  // This remains unchanged using global state
+      updateBest();  // This also remains unchanged using global state
+  }
+  setAnts(currentAnts);  // Update the React state at the end
+  console.log("bestPath: II ", bestPath);
+};
 
 
-  useEffect(() => {
-    if (distances.length > 0) {
-      const initialPheromonesMatrix = generateInitialPheromonesMatrix(numberOfCities);
-      setPheromones(initialPheromonesMatrix);
-    }
-  }, [distances, numberOfCities]);
-  
-  useEffect(() => {
-    console.log("bestPath effect: ", bestPath);
-  }, [bestPath]);
+  const performAntUpdate = (prevAnts : Ant[]) => {
+    return prevAnts.map((ant) => {
+        const currentCity = ant.currentCity;
+        console.log("current city: ", currentCity);
+        console.log("current path: ", ant.path);
+        const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);  // Use ant.path directly
+        console.log("next city: ", nextCity);
+        const updatedPath = [...ant.path, nextCity];
+        console.log("updated path: ", updatedPath);
+
+        return {
+            ...ant,
+            currentCity: nextCity,
+            path: updatedPath,
+        };
+    });
+  };
+
+
+
 
   return (
     <div className="graph-input-container">
@@ -369,9 +501,50 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
         <Button onClick={runAntColonyOptimization}>Start Simulation</Button>
       </div>
     </div>
-  );
-
-  
+  );  
 };
 
 export default GraphInputComponent;
+
+
+  // useEffect(() => {
+  //   initializeAnts();
+  // }, [nodes])
+
+  // gets correct number of ants randomly assigned with 0 path len
+  // const initializeAnts = () => {
+  //   const numberOfCities = nodes.length;
+  //   const numberOfAnts = Math.floor(numberOfCities * antFactor);
+  //   const antsArray: Ant[] = [];
+
+  //   for (let i = 0; i < numberOfAnts; i++) {
+  //     const ant: Ant = {
+  //       id: i + 1,
+  //       currentCity: getRandomCity(numberOfCities),
+  //       path: [],
+  //     };
+  //     antsArray.push(ant);
+  //   }
+  //   setAnts(antsArray);
+  //   console.log("initialize ants ants len: ", ants.length);
+  // };
+
+  
+  // useEffect(() => {
+  //   const distancesMatrix = generateDistancesMatrix(nodes);
+  //   setDistances(distancesMatrix);
+  //   setNumberOfCities(distancesMatrix.length);
+  // }, [nodes]);
+
+  // useEffect(() => {
+  //   setPheromones(initialPheromones);
+  //   setDistances(initialDistances);
+  // }, []);
+
+  // useEffect(() => {
+  //   if (distances.length > 0) {
+  //     const numberOfCities = distances.length;
+  //     const initialPheromonesMatrix = generateInitialPheromonesMatrix(numberOfCities);
+  //     setPheromones(initialPheromonesMatrix);
+  //   }
+  // }, [distances]);
