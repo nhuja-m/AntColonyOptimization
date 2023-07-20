@@ -18,7 +18,9 @@ type Ant = {
   id: number;
   currentCity: number;
   path: number[];
+  pathLength: number;  // New attribute for storing path length
 };
+
 
 type GraphInputComponentProps = {
   onNodeUpdate: (updatedNodes: GraphNode[]) => void;
@@ -69,6 +71,10 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   }, [nodes, onNodeUpdate]);
 
   useEffect(() => {
+    console.log("Updated bestPath: ", bestPath);
+}, [bestPath]);
+
+  useEffect(() => {
     const distancesMatrix = generateDistancesMatrix(nodes);
     setDistances(distancesMatrix);
     setNumberOfCities(distancesMatrix.length);
@@ -87,7 +93,7 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
 
   const initializeAnts = useCallback(() => {
     const numberOfCities = nodes.length;
-    const numberOfAnts = 1 // Math.floor(numberOfCities * antFactor);
+    const numberOfAnts = Math.floor(numberOfCities * antFactor);
     const antsArray: Ant[] = [];
   
     for (let i = 0; i < numberOfAnts; i++) {
@@ -96,6 +102,7 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
         id: i + 1,
         currentCity: city,
         path: [city],
+        pathLength: 0
       };
       antsArray.push(ant);
     }
@@ -111,73 +118,32 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     return Math.floor(Math.random() * numberOfCities) + 1;
   };
 
-  // const updateAnts = () => {
-  //   console.log("update ants before: ", ants[0]);
-
-  //   const updatedAnts = ants.map((ant) => {
-  //     const currentCity = ant.currentCity;
-  //     console.log("current city: ", currentCity);
-  //     console.log("current path: ", ant.path);
-  //     const nextCity = chooseNextCity(ant, pheromones, distances);
-  //     console.log("next city: ", nextCity);
-  //     const updatedPath = [...ant.path, nextCity];
-  //     console.log("updated path: ", updatedPath);
-
-  //     return {
-  //       ...ant,
-  //       currentCity: nextCity,
-  //       path: updatedPath,
-  //     };
-  //   });
-  //   setAnts(updatedAnts);
-  //   console.log("update ants after: ", updatedAnts);
-  // };
-
-  // const updateAnts = () => {
-  //   setAnts((prevAnts) => {
-  //     console.log("update ants before: ", prevAnts[0]);
+  const performAntUpdate = (prevAnts: Ant[]) => {
+    return prevAnts.map((ant) => {
+      const currentCity = ant.currentCity;
+      console.log("current city: ", currentCity);
+      console.log("current path: ", ant.path);
+      const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);  // Use ant.path directly here
+      console.log("next city: ", nextCity);
+      const updatedPath = [...ant.path, nextCity];
+      console.log("updated path: ", updatedPath);
+      
+      // Calculate path length for the updated path
+      let updatedPathLength = 0;
+      for (let i = 0; i < updatedPath.length - 1; i++) {
+        updatedPathLength += distances[updatedPath[i] - 1][updatedPath[i + 1] - 1];
+      }
+      console.log("updatedpath len:", updatedPathLength);
   
-  //     const updatedAnts = prevAnts.map((ant) => {
-  //       const currentCity = ant.currentCity;
-  //       console.log("current city: ", currentCity);
-  //       console.log("current path: ", ant.path);
-  //       const nextCity = chooseNextCity(ant, pheromones, distances);
-  //       console.log("next city: ", nextCity);
-  //       const updatedPath = [...ant.path, nextCity];
-  //       console.log("updated path: ", updatedPath);
-  
-  //       return {
-  //         ...ant,
-  //         currentCity: nextCity,
-  //         path: updatedPath,
-  //       };
-  //     });
-  
-  //     console.log("update ants after: ", updatedAnts);
-  //     return updatedAnts;
-  //   });
-  // };
-
-  const updateAnts = () => {
-    setAnts((prevAnts) => {
-        const updatedAnts = prevAnts.map((ant) => {
-            const currentCity = ant.currentCity;
-            console.log("current city: ", currentCity);
-            console.log("current path: ", ant.path);
-            const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);  // Use ant.path directly here
-            console.log("next city: ", nextCity);
-            const updatedPath = [...ant.path, nextCity];
-            console.log("updated path: ", updatedPath);
-
-            return {
-                ...ant,
-                currentCity: nextCity,
-                path: updatedPath,
-            };
-        });
-        return updatedAnts;
+      return {
+        ...ant,
+        currentCity: nextCity,
+        path: updatedPath,
+        pathLength: updatedPathLength  // Update the pathLength for the ant
+      };
     });
-};
+  };
+  
 
 
   // const chooseNextCity = (ant: Ant, pheromones: number[][], distances: number[][]) => {
@@ -251,57 +217,41 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   
     return pheromones;
   };
-  
-  // const trailLength = (ant: Ant) => {
-  //   console.log("city num", numberOfCities);
-  //   console.log(distances);
-  //   console.log(ant.path)
-  //   let length = distances[ant.path[numberOfCities - 1] - 1][ant.path[0] - 1];
-
-  //   for (let i = 0; i < numberOfCities - 1; i++) {
-  //     length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
-  //   }
-  //   return length;
-  // };
 
   const trailLength = (ant: Ant) => {
-    console.log("city num", numberOfCities);
-    console.log("distances matrix", distances);
-    console.log("ant path", ant.path);
+    console.log("trail length ant path", ant.path);
     
     const pathLength = ant.path.length;
     
     if(pathLength < 2) {
+        console.log("less than 2");
         return 0;  // If the ant has visited less than 2 cities, the length is 0
     }
 
     const firstIndex = ant.path[pathLength - 1] - 1;
     const secondIndex = ant.path[0] - 1;
-
-    console.log("First index:", firstIndex);
-    console.log("Second index:", secondIndex);
     
     if (!distances[firstIndex]) {
         console.error("No subarray at index:", firstIndex);
         return 0;  // Or handle this in some other appropriate way
     }
-    
+        
     let length = distances[firstIndex][secondIndex];
 
     for (let i = 0; i < pathLength - 1; i++) {
         length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
     }
+    console.log("trail length length: ", length);
     return length;
 };
-
-
 
   const updateBest = () => {
     let bestTourLength = Infinity;
     let bestTourOrder: number[] = [];
   
     ants.forEach((ant) => {
-      const tourLength = trailLength(ant);
+      const tourLength = ant.pathLength;
+      console.log("inside updatebest ant path len: ", tourLength);
       if (tourLength < bestTourLength) {
         bestTourLength = tourLength;
         bestTourOrder = ant.path.slice();
@@ -312,7 +262,7 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     console.log("bestPath: ", bestPath);
   };
   
-  const updatePheromones = () => {
+  const updatePheromones = (currentAnts: Ant[]) => {
     const updatedPheromones: number[][] = [];
   
     for (let i = 0; i < nodes.length; i++) {
@@ -323,9 +273,13 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
       updatedPheromones.push(row);
     }
   
-    ants.forEach((ant) => {
+    currentAnts.forEach((ant) => {
+      console.log("inside phermones ant path:", ant.path);
+      console.log("inside phermones ant path length:", ant.pathLength);
+
       const antPath = ant.path;
-      const contribution = Q / trailLength(ant);
+      const contribution = Q / ant.pathLength;
+      console.log("contribution: ", contribution);
       for (let i = 0; i < antPath.length - 1; i++) {
         const source = antPath[i] - 1;
         const target = antPath[i + 1] - 1;
@@ -355,101 +309,23 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     setNodes((prevNodes) => [...prevNodes, newNode]);
   };
 
-  // const runAntColonyOptimization = async () => {
-  //   // await initializeAnts();
-  //   console.log("ants.length: ", ants.length);
-
-  //   if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
-  //     // Handle invalid inputs
-  //     console.log("invalid");
-  //     return;
-  //   }
-  //   console.log("valid");
-
-  //   const maxIterations = 10; // Adjust the maximum number of iterations as needed
-  //   for (let i = 0; i < maxIterations; i++) {
-  //     await new Promise(resolve => setTimeout(() => {
-  //       updateAnts();
-  //       resolve(null);
-  //   }, 0));
-
-  //   await new Promise(resolve => setTimeout(() => {
-  //       updatePheromones();
-  //       resolve(null);
-  //   }, 0));
-
-  //   await new Promise(resolve => setTimeout(() => {
-  //       updateBest();
-  //       resolve(null);
-  //   }, 0));
-  //   }    
-  //   console.log("bestPath: II ", bestPath);
-  // };
-
-// ANT.PATH REMAINS THE FIRST CITY ASSIGNED
-//   const runAntColonyOptimization = async () => {
-//     console.log("ants.length: ", ants.length);
-
-//     if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
-//         console.log("invalid");
-//         return;
-//     }
-//     console.log("valid");
-
-//     const maxIterations = 10;
-    
-//     let currentAnts = [...ants];  // Make a copy of the ants
-//     for (let i = 0; i < maxIterations; i++) {
-//         currentAnts = performAntUpdate(currentAnts);  // Update the ants based on previous state
-//         updatePheromones();  // This remains unchanged
-//         updateBest();  // This remains unchanged
-//     }
-//     setAnts(currentAnts);  // Update the state at the end
-//     console.log("bestPath: II ", bestPath);
-// };
-
 const runAntColonyOptimization = async () => {
   console.log("ants.length: ", ants.length);
 
   if (ants.length === 0 || pheromones.length === 0 || distances.length === 0) {
-      console.log("invalid");
       return;
   }
-  console.log("valid");
 
-  const maxIterations = 10;
+  const maxIterations = 3;
   
   let currentAnts = [...ants];  // Make a copy of the ants
   for (let i = 0; i < maxIterations; i++) {
       currentAnts = performAntUpdate(currentAnts);  // Update the ants based on previous state
-      updatePheromones();  // This remains unchanged using global state
+      updatePheromones(currentAnts);  // This remains unchanged using global state
       updateBest();  // This also remains unchanged using global state
   }
   setAnts(currentAnts);  // Update the React state at the end
-  console.log("bestPath: II ", bestPath);
 };
-
-
-  const performAntUpdate = (prevAnts : Ant[]) => {
-    return prevAnts.map((ant) => {
-        const currentCity = ant.currentCity;
-        console.log("current city: ", currentCity);
-        console.log("current path: ", ant.path);
-        const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);  // Use ant.path directly
-        console.log("next city: ", nextCity);
-        const updatedPath = [...ant.path, nextCity];
-        console.log("updated path: ", updatedPath);
-
-        return {
-            ...ant,
-            currentCity: nextCity,
-            path: updatedPath,
-        };
-    });
-  };
-
-
-
 
   return (
     <div className="graph-input-container">
@@ -493,7 +369,7 @@ const runAntColonyOptimization = async () => {
   
       <div className="ant-container">
         {ants.map((ant) => (
-          <AntComponent key={`${ant.id}-${ant.currentCity}`} id={ant.id} currentCity={ant.currentCity} path={ant.path} />
+          <AntComponent key={`${ant.id}-${ant.currentCity}`} id={ant.id} currentCity={ant.currentCity} path={ant.path} pathLength={ant.pathLength}/>
         ))}
       </div>
       <div>Best Path: {bestPath.join(' -> ')}</div>
@@ -505,46 +381,3 @@ const runAntColonyOptimization = async () => {
 };
 
 export default GraphInputComponent;
-
-
-  // useEffect(() => {
-  //   initializeAnts();
-  // }, [nodes])
-
-  // gets correct number of ants randomly assigned with 0 path len
-  // const initializeAnts = () => {
-  //   const numberOfCities = nodes.length;
-  //   const numberOfAnts = Math.floor(numberOfCities * antFactor);
-  //   const antsArray: Ant[] = [];
-
-  //   for (let i = 0; i < numberOfAnts; i++) {
-  //     const ant: Ant = {
-  //       id: i + 1,
-  //       currentCity: getRandomCity(numberOfCities),
-  //       path: [],
-  //     };
-  //     antsArray.push(ant);
-  //   }
-  //   setAnts(antsArray);
-  //   console.log("initialize ants ants len: ", ants.length);
-  // };
-
-  
-  // useEffect(() => {
-  //   const distancesMatrix = generateDistancesMatrix(nodes);
-  //   setDistances(distancesMatrix);
-  //   setNumberOfCities(distancesMatrix.length);
-  // }, [nodes]);
-
-  // useEffect(() => {
-  //   setPheromones(initialPheromones);
-  //   setDistances(initialDistances);
-  // }, []);
-
-  // useEffect(() => {
-  //   if (distances.length > 0) {
-  //     const numberOfCities = distances.length;
-  //     const initialPheromonesMatrix = generateInitialPheromonesMatrix(numberOfCities);
-  //     setPheromones(initialPheromonesMatrix);
-  //   }
-  // }, [distances]);
