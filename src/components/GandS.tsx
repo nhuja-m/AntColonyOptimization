@@ -118,31 +118,70 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     return Math.floor(Math.random() * numberOfCities) + 1;
   };
 
-  const performAntUpdate = (prevAnts: Ant[]) => {
-    return prevAnts.map((ant) => {
-      const currentCity = ant.currentCity;
-      console.log("current city: ", currentCity);
-      console.log("current path: ", ant.path);
-      const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);  // Use ant.path directly here
-      console.log("next city: ", nextCity);
-      const updatedPath = [...ant.path, nextCity];
-      console.log("updated path: ", updatedPath);
+  // const performAntUpdate = (prevAnts: Ant[]) => {
+  //   return prevAnts.map((ant) => {
+  //     const currentCity = ant.currentCity;
+  //     console.log("current city: ", currentCity);
+  //     console.log("current path: ", ant.path);
+  //     const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);  // Use ant.path directly here
+  //     console.log("next city: ", nextCity);
+  //     const updatedPath = [...ant.path, nextCity];
+  //     console.log("updated path: ", updatedPath);
       
-      // Calculate path length for the updated path
-      let updatedPathLength = 0;
-      for (let i = 0; i < updatedPath.length - 1; i++) {
-        updatedPathLength += distances[updatedPath[i] - 1][updatedPath[i + 1] - 1];
-      }
-      console.log("updatedpath len:", updatedPathLength);
+  //     // Calculate path length for the updated path
+  //     let updatedPathLength = 0;
+  //     for (let i = 0; i < updatedPath.length - 1; i++) {
+  //       updatedPathLength += distances[updatedPath[i] - 1][updatedPath[i + 1] - 1];
+  //     }
+  //     console.log("updatedpath len:", updatedPathLength);
   
-      return {
-        ...ant,
-        currentCity: nextCity,
-        path: updatedPath,
-        pathLength: updatedPathLength  // Update the pathLength for the ant
-      };
-    });
+  //     return {
+  //       ...ant,
+  //       currentCity: nextCity,
+  //       path: updatedPath,
+  //       pathLength: updatedPathLength  // Update the pathLength for the ant
+  //     };
+  //   });
+  // };
+
+  const performAntUpdate = (prevAnts: Ant[]) => {
+    let updatedAnts = [...prevAnts];  // Clone the ants
+  
+    for (let currentIndex = 0; currentIndex < numberOfCities - 1; currentIndex++) {
+      updatedAnts = updatedAnts.map((ant) => {
+        const currentCity = ant.currentCity;
+        console.log("current city: ", currentCity);
+        console.log("current path: ", ant.path);
+
+        if (ant.path.length === numberOfCities) {
+          return ant;
+      }
+  
+        const nextCity = chooseNextCity(ant, ant.path, pheromones, distances);
+        console.log("next city: ", nextCity);
+  
+        const updatedPath = [...ant.path, nextCity];
+        console.log("updated path: ", updatedPath);
+        
+        // Calculate path length for the updated path
+        let updatedPathLength = 0;
+        for (let i = 0; i < updatedPath.length - 1; i++) {
+          updatedPathLength += distances[updatedPath[i] - 1][updatedPath[i + 1] - 1];
+        }
+        console.log("updatedpath len:", updatedPathLength);
+  
+        return {
+          ...ant,
+          currentCity: nextCity,
+          path: updatedPath,
+          pathLength: updatedPathLength
+        };
+      });
+    }
+  
+    return updatedAnts;
   };
+  
   
 
 
@@ -218,38 +257,12 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
     return pheromones;
   };
 
-  const trailLength = (ant: Ant) => {
-    console.log("trail length ant path", ant.path);
-    
-    const pathLength = ant.path.length;
-    
-    if(pathLength < 2) {
-        console.log("less than 2");
-        return 0;  // If the ant has visited less than 2 cities, the length is 0
-    }
-
-    const firstIndex = ant.path[pathLength - 1] - 1;
-    const secondIndex = ant.path[0] - 1;
-    
-    if (!distances[firstIndex]) {
-        console.error("No subarray at index:", firstIndex);
-        return 0;  // Or handle this in some other appropriate way
-    }
-        
-    let length = distances[firstIndex][secondIndex];
-
-    for (let i = 0; i < pathLength - 1; i++) {
-        length += distances[ant.path[i] - 1][ant.path[i + 1] - 1];
-    }
-    console.log("trail length length: ", length);
-    return length;
-};
-
-  const updateBest = () => {
+  const updateBest = (currentAnts: Ant[]) => {
     let bestTourLength = Infinity;
     let bestTourOrder: number[] = [];
   
-    ants.forEach((ant) => {
+    currentAnts.forEach((ant) => {
+      if (ant.path.length !== nodes.length) return; 
       const tourLength = ant.pathLength;
       console.log("inside updatebest ant path len: ", tourLength);
       if (tourLength < bestTourLength) {
@@ -316,13 +329,13 @@ const runAntColonyOptimization = async () => {
       return;
   }
 
-  const maxIterations = 3;
+  const maxIterations = 100;
   
   let currentAnts = [...ants];  // Make a copy of the ants
   for (let i = 0; i < maxIterations; i++) {
       currentAnts = performAntUpdate(currentAnts);  // Update the ants based on previous state
       updatePheromones(currentAnts);  // This remains unchanged using global state
-      updateBest();  // This also remains unchanged using global state
+      updateBest(currentAnts);  // This also remains unchanged using global state
   }
   setAnts(currentAnts);  // Update the React state at the end
 };
@@ -344,9 +357,18 @@ const runAntColonyOptimization = async () => {
         {edges.map((edge, index) => {
           const sourceNode = nodes.find((node) => node.id === edge.source);
           const targetNode = nodes.find((node) => node.id === edge.target);
-          const isBestPathEdge = bestPath.includes(edge.source) && bestPath.includes(edge.target);
+          
+          const indexOfSource = bestPath.indexOf(edge.source);
+          const isConsecutiveEdge = indexOfSource !== -1 && 
+                                    (bestPath[indexOfSource + 1] === edge.target || 
+                                    bestPath[indexOfSource - 1] === edge.target);
+          const isLoopBackEdge = (edge.source === bestPath[0] && 
+                                edge.target === bestPath[bestPath.length - 1]) || 
+                                (edge.target === bestPath[0] && 
+                                edge.source === bestPath[bestPath.length - 1]);
+          const isBestPathEdge = isConsecutiveEdge || isLoopBackEdge;
           const strokeColor = isBestPathEdge ? 'red' : 'black';
-          const strokeWidth = isBestPathEdge ? 10 : 1;
+          const strokeWidth = isBestPathEdge ? 3 : 1;
 
           if (sourceNode && targetNode) {
             return (
