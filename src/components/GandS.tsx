@@ -51,7 +51,7 @@ const GraphInputComponent: React.FC<GraphInputComponentProps> = ({ onNodeUpdate 
   const beta = 5;
   const evaporation = 0.5;
   const Q = 500;
-  const antFactor = 0.8;
+  const antFactor = 1.8;
   const randomFactor = 0.01;
 
   const initialPheromones: number[][] = [];
@@ -329,7 +329,7 @@ const runAntColonyOptimization = async () => {
       return;
   }
 
-  const maxIterations = 100;
+  const maxIterations = 200;
   
   let currentAnts = [...ants];  // Make a copy of the ants
   for (let i = 0; i < maxIterations; i++) {
